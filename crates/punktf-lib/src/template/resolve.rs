@@ -94,6 +94,7 @@ macro_rules! family {
 /// [template](`super::Template`). During the filling all found errors are
 /// recorded in the [session](`super::session::Session`) and emitted after the
 /// [resolve](`Resolver::resolve`) process.
+#[derive(Debug)]
 pub struct Resolver<'a, PV, DV> {
 	/// Template to resolve.
 	template: &'a Template<'a>,

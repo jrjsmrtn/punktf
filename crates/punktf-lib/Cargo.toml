@@ -15,10 +15,12 @@ keywords.workspace = true
 name = "punktf_lib"
 
 [features]
-default = ["profile-all"]
+default = ["profile-all", "template-punktf"]
 profile-all = ["profile-json", "profile-yaml"]
 profile-json = ["serde_json"]
 profile-yaml = ["serde_yaml"]
+template-punktf = []
+template-minijinja = ["minijinja"]
 
 [dependencies]
 color-eyre.workspace = true
@@ -32,6 +34,7 @@ serde.workspace = true
 # Optional dependencies can not be in the workspace dependencies
 serde_json = { version = "1.0.132", optional = true }
 serde_yaml = { version = "0.9.34", optional = true }
+minijinja = { version = "2.5.0", optional = true }
 
 [dev-dependencies]
 pretty_assertions.workspace = true

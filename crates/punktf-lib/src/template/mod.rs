@@ -96,8 +96,9 @@
 
 mod block;
 mod diagnostic;
+pub mod engine;
 mod parse;
-mod resolve;
+pub mod resolve;
 mod session;
 pub mod source;
 mod span;

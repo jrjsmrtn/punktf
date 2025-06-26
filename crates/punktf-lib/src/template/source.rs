@@ -44,16 +44,16 @@ impl Location {
 //
 // Inspired by <https://github.com/rust-lang/rust/blob/362e0f55eb1f36d279e5c4a58fb0fe5f9a2c579d/compiler/rustc_span/src/lib.rs#L273>.
 /// This struct holds the origin from which a [`Source`] came from.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum SourceOrigin<'a> {
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum SourceOrigin {
 	/// The origin is a file located at the path.
-	File(&'a Path),
+	File(std::path::PathBuf),
 
 	/// An unknown/anonymous origin (mainly used for testing).
 	Anonymous,
 }
 
-impl<'a> fmt::Display for SourceOrigin<'a> {
+impl fmt::Display for SourceOrigin {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		match self {
 			Self::File(path) => fmt::Display::fmt(&path.display(), f),
@@ -203,10 +203,10 @@ fn analyze_source(content: &'_ str) -> (Vec<BytePos>, Vec<SpecialWidthChar>, Vec
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Source<'a> {
 	/// Origin of the source file.
-	pub(crate) origin: SourceOrigin<'a>,
+	pub(crate) origin: SourceOrigin,
 
 	/// Content of the source file.
-	pub(crate) content: &'a str,
+	pub(crate) content: std::borrow::Cow<'a, str>,
 
 	/// [Positions](`super::span::BytePos`) of all characters which start a new line in [`Source::content`].
 	pub(crate) lines: Vec<BytePos>,
@@ -220,12 +220,12 @@ pub struct Source<'a> {
 
 impl<'a> Source<'a> {
 	/// Creates a new source for the given `origin` and `content`.
-	pub fn new(origin: SourceOrigin<'a>, content: &'a str) -> Self {
+	pub fn new(origin: SourceOrigin, content: &'a str) -> Self {
 		let (lines, special_width_chars, multi_byte_chars) = analyze_source(content);
 
 		Self {
 			origin,
-			content,
+			content: std::borrow::Cow::Borrowed(content),
 			lines,
 			special_width_chars,
 			multi_byte_chars,
@@ -240,8 +240,38 @@ impl<'a> Source<'a> {
 
 	/// Creates a new source with [`SourceOrigin::File`] and the given
 	/// `content`.
-	pub fn file(path: &'a Path, content: &'a str) -> Self {
-		Self::new(SourceOrigin::File(path), content)
+	pub fn file(path: &Path, content: &'a str) -> Self {
+		Self::new(SourceOrigin::File(path.to_path_buf()), content)
+	}
+
+	/// Creates a new owned source for the given `origin` and `content`.
+	pub fn new_owned(origin: SourceOrigin, content: String) -> Self {
+		let (lines, special_width_chars, multi_byte_chars) = analyze_source(&content);
+
+		Self {
+			origin,
+			content: std::borrow::Cow::Owned(content),
+			lines,
+			special_width_chars,
+			multi_byte_chars,
+		}
+	}
+
+	/// Creates a new owned source with [`SourceOrigin::Anonymous`] and the given
+	/// `content`.
+	pub fn anonymous_owned(content: String) -> Self {
+		Self::new_owned(SourceOrigin::Anonymous, content)
+	}
+
+	/// Convert to an owned source.
+	pub fn to_owned(&self) -> Source<'static> {
+		Source {
+			origin: self.origin.clone(),
+			content: std::borrow::Cow::Owned(self.content.to_string()),
+			lines: self.lines.clone(),
+			special_width_chars: self.special_width_chars.clone(),
+			multi_byte_chars: self.multi_byte_chars.clone(),
+		}
 	}
 
 	/// Translates a (byte position)[`super::span::BytePos`] into a (character
@@ -304,7 +334,7 @@ impl<'a> Source<'a> {
 	}
 
 	/// Get's the contents of a line which is located at the zero indexed `idx`.
-	pub fn get_idx_line(&self, idx: usize) -> &'a str {
+	pub fn get_idx_line(&self, idx: usize) -> &str {
 		let line_end_idx = self.lines.get(idx + 1);
 
 		let line_start = self.lines[idx];
@@ -318,18 +348,18 @@ impl<'a> Source<'a> {
 	}
 
 	/// Get's the contents of a line on which `pos` is located on.
-	pub fn get_pos_line(&self, pos: BytePos) -> &'a str {
+	pub fn get_pos_line(&self, pos: BytePos) -> &str {
 		self.get_idx_line(self.get_pos_line_idx(pos))
 	}
 
 	/// Returns the origin of the source.
-	pub const fn origin(&self) -> &SourceOrigin<'_> {
+	pub const fn origin(&self) -> &SourceOrigin {
 		&self.origin
 	}
 
 	/// Returns the whole content of the source.
-	pub const fn content(&self) -> &str {
-		self.content
+	pub fn content(&self) -> &str {
+		&self.content
 	}
 }
 
@@ -337,7 +367,7 @@ impl Deref for Source<'_> {
 	type Target = str;
 
 	fn deref(&self) -> &Self::Target {
-		self.content
+		&self.content
 	}
 }
 

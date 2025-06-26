@@ -141,7 +141,11 @@ use punktf_lib::profile::dotfile::Dotfile;
 use punktf_lib::profile::source::PunktfSource;
 use punktf_lib::profile::{resolve_profile, LayeredProfile, Profile};
 use punktf_lib::template::source::Source;
-use punktf_lib::template::Template;
+use punktf_lib::template::engine::{TemplateEngine, TemplateEngineType, TemplateContext};
+#[cfg(feature = "template-punktf")]
+use punktf_lib::template::engine::punktf::PunktfTemplateEngine;
+#[cfg(feature = "template-minijinja")]
+use punktf_lib::template::engine::minijinja::MiniJinjaTemplateEngine;
 use punktf_lib::visit::deploy::{deployment::Deployment, *};
 use punktf_lib::visit::diff::Diff;
 
@@ -236,6 +240,36 @@ fn setup_env(source: &PunktfSource, profile: &LayeredProfile, profile_name: &str
 		std::env::set_var("PUNKTF_CURRENT_TARGET", target);
 	}
 	std::env::set_var("PUNKTF_CURRENT_PROFILE", profile_name);
+}
+
+/// Render a template using the specified template engine.
+fn render_template(
+	source: Source<'_>,
+	engine_type: TemplateEngineType,
+	context: &TemplateContext,
+) -> Result<String> {
+	match engine_type {
+		#[cfg(feature = "template-punktf")]
+		TemplateEngineType::Punktf => {
+			let engine = PunktfTemplateEngine::new();
+			let template = engine.parse(source).map_err(color_eyre::Report::from)?;
+			engine.render(&template, context).map_err(color_eyre::Report::from)
+		}
+		#[cfg(feature = "template-minijinja")]
+		TemplateEngineType::Minijinja => {
+			let engine = MiniJinjaTemplateEngine::new();
+			let template = engine.parse(source).map_err(color_eyre::Report::from)?;
+			engine.render(&template, context).map_err(color_eyre::Report::from)
+		}
+		#[cfg(not(feature = "template-punktf"))]
+		TemplateEngineType::Punktf => {
+			return Err(eyre!("punktf template engine not available. Enable 'template-punktf' feature."));
+		}
+		#[cfg(not(any(feature = "template-punktf", feature = "template-minijinja")))]
+		_ => {
+			return Err(eyre!("No template engines available. Enable either 'template-punktf' or 'template-minijinja' feature."));
+		}
+	}
 }
 
 /// Handles the writing of the deployment status to output files/formats.
@@ -344,6 +378,7 @@ fn handle_command_render(
 		shared: opt::RepoShared {
 			source,
 			profile: profile_name,
+			template_engine: cli_engine,
 			..
 		},
 		dotfile,
@@ -396,12 +431,22 @@ fn handle_command_render(
 		None
 	};
 
+	// Determine which template engine to use
+	let engine_type = cli_engine
+		.or(profile.template_engine)
+		.unwrap_or_default();
+
 	let file = ptf_src.dotfiles().join(dotfile);
 	let content = std::fs::read_to_string(&file)?;
 	let file_source = Source::file(&file, &content);
-	let template = Template::parse(file_source)?;
-	let resolved = template.resolve(Some(profile.variables()), dotfile_vars)?;
-
+	
+	// Create template context
+	let context = TemplateContext::new()
+		.with_profile_vars(Some(&profile.variables))
+		.with_dotfile_vars(dotfile_vars)
+		.with_env(true);
+	
+	let resolved = render_template(file_source, engine_type, &context)?;
 	print!("{resolved}");
 
 	Ok(())

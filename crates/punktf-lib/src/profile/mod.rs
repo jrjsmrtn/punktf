@@ -21,6 +21,7 @@ use crate::profile::link::Symlink;
 use crate::profile::transform::ContentTransformer;
 use crate::profile::variables::{Variables, Vars};
 use crate::profile::{dotfile::Dotfile, source::PunktfSource};
+use crate::template::engine::TemplateEngineType;
 
 /// This enum represents all available merge modes `punktf` supports. The merge
 /// mode is important when a file already exists at the target location of a
@@ -78,6 +79,10 @@ pub struct Profile {
 	/// Variables of the profile. Each dotfile will have this environment.
 	#[serde(skip_serializing_if = "Option::is_none", default)]
 	pub variables: Option<Variables>,
+
+	/// Template engine to use for rendering templates.
+	#[serde(skip_serializing_if = "Option::is_none", default)]
+	pub template_engine: Option<TemplateEngineType>,
 
 	/// Content transform of the profile. Each dotfile will have these applied.
 	#[serde(skip_serializing_if = "Vec::is_empty", default)]
@@ -194,6 +199,12 @@ impl Vars for LayeredVariables {
 	{
 		self.inner.get(key.as_ref()).map(|(_, value)| value.deref())
 	}
+	
+	fn as_map(&self) -> HashMap<String, String> {
+		self.inner.iter()
+			.map(|(key, (_, value))| (key.clone(), value.clone()))
+			.collect()
+	}
 }
 
 /// Defines a profile that appears on different layers.
@@ -210,6 +221,9 @@ pub struct LayeredProfile {
 
 	/// The variables collected from all profiles of the extend chain.
 	pub variables: LayeredVariables,
+
+	/// The template engine type from the first profile that specifies one.
+	pub template_engine: Option<TemplateEngineType>,
 
 	/// The content transformer collected from all profiles of the extend chain.
 	pub transformers: Vec<(usize, ContentTransformer)>,
@@ -336,6 +350,12 @@ impl LayeredProfileBuilder {
 			}
 		}
 
+		// Find the first template engine type specified in the profile chain
+		let template_engine = self
+			.profiles
+			.iter()
+			.find_map(|profile| profile.template_engine);
+
 		let mut transformers = Vec::new();
 
 		for (idx, transformer) in self
@@ -411,6 +431,7 @@ impl LayeredProfileBuilder {
 			profile_names: self.profile_names,
 			target,
 			variables,
+			template_engine,
 			transformers,
 			pre_hooks,
 			post_hooks,
@@ -629,6 +650,7 @@ mod tests {
 			variables: Some(Variables {
 				inner: profile_vars,
 			}),
+			template_engine: None,
 			transformers: Vec::new(),
 			target: Some(PathBuf::from("/home/demo/.config")),
 			pre_hooks: vec![Hook::new("echo \"Foo\"")],

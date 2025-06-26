@@ -10,6 +10,9 @@ use serde::{Deserialize, Serialize};
 pub trait Vars {
 	/// Get a variable by name
 	fn var<K: AsRef<str>>(&self, key: K) -> Option<&str>;
+	
+	/// Convert variables to a HashMap for template engines
+	fn as_map(&self) -> HashMap<String, String>;
 }
 
 /// User defined variables
@@ -26,6 +29,10 @@ impl Vars for Variables {
 		K: AsRef<str>,
 	{
 		self.inner.get(key.as_ref()).map(|value| value.deref())
+	}
+	
+	fn as_map(&self) -> HashMap<String, String> {
+		self.inner.clone()
 	}
 }
 

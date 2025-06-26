@@ -11,6 +11,7 @@ use super::diagnostic::{Diagnostic, DiagnosticBuilder, DiagnosticLevel};
 use super::session::Session;
 use super::source::Source;
 use super::span::{ByteSpan, Pos, Spanned};
+use std::ops::Index;
 use super::Template;
 use crate::template::block::BlockKind;
 
@@ -26,13 +27,13 @@ pub struct Parser<'a> {
 	session: Session,
 
 	/// An iterator of all blocks found within `source`.
-	blocks: BlockIter<'a>,
+	blocks: BlockIter,
 }
 
 impl<'a> Parser<'a> {
 	/// Creates a new parser for the given `source`.
-	pub const fn new(source: Source<'a>) -> Self {
-		let blocks = BlockIter::new(source.content);
+	pub fn new(source: Source<'a>) -> Self {
+		let blocks = BlockIter::new(source.content());
 
 		Self {
 			source,
@@ -506,7 +507,7 @@ impl<'a> Parser<'a> {
 	/// resolver.
 	fn peek_block_hint(&self) -> Option<BlockHint> {
 		// Create a copy of the block iter to not mess up the state while peeking
-		let mut peek = self.blocks;
+		let mut peek = self.blocks.clone();
 		peek.next()?.ok().map(|spanned| spanned.into_value())
 	}
 }
@@ -724,23 +725,23 @@ const fn is_var_name_symbol(b: u8) -> bool {
 }
 
 /// An iterator over all [blocks](`super::block::BlockHint`) of a string.
-#[derive(Debug, Clone, Copy)]
-struct BlockIter<'a> {
+#[derive(Debug, Clone)]
+struct BlockIter {
 	/// Content to iterate over.
-	content: &'a str,
+	content: String,
 
 	/// Current index into `content`.
 	index: usize,
 }
 
-impl<'a> BlockIter<'a> {
+impl BlockIter {
 	/// Creates a new instance for `content`.
-	const fn new(content: &'a str) -> Self {
-		Self { content, index: 0 }
+	fn new(content: &str) -> Self {
+		Self { content: content.to_string(), index: 0 }
 	}
 }
 
-impl<'a> Iterator for BlockIter<'a> {
+impl Iterator for BlockIter {
 	type Item = Result<Spanned<BlockHint>, DiagnosticBuilder>;
 
 	fn next(&mut self) -> Option<Self::Item> {
@@ -826,5 +827,14 @@ impl<'a> Iterator for BlockIter<'a> {
 		}
 
 		Some(Ok(span.span(BlockHint::Var)))
+	}
+}
+
+// Implement ByteSpan indexing for String to match the str implementation
+impl Index<ByteSpan> for String {
+	type Output = str;
+
+	fn index(&self, index: ByteSpan) -> &Self::Output {
+		&self[index.low.as_usize()..index.high.as_usize()]
 	}
 }

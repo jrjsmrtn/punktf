@@ -12,11 +12,14 @@ license.workspace = true
 keywords.workspace = true
 
 [features]
+default = ["template-punktf"]
 # Reference: <https://users.rust-lang.org/t/windows-binaries-vcruntime140-dll-not-found-unless-crt-static/94517/4>
 # Enabling `windows-static` bundles `VCRUNTIME140.DLL` such that it's
 # not necessary to install "Microsoft Visual C++ Redistributable".
 # Use `cargo build --features=windows-static` to enable.
 windows-static = ["dep:static_vcruntime"]
+template-punktf = ["punktf-lib/template-punktf"]
+template-minijinja = ["punktf-lib/template-minijinja"]
 
 [[bin]]
 path = "src/main.rs"

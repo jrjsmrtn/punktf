@@ -13,6 +13,7 @@ use std::path::PathBuf;
 
 use clap::{ArgGroup, Args, Parser, Subcommand, ValueEnum};
 use clap_complete::Shell;
+use punktf_lib::template::engine::TemplateEngineType;
 
 #[derive(Debug, Parser)]
 #[command(author, version, about, long_about = None)]
@@ -83,6 +84,13 @@ pub struct RepoShared {
 	/// `profiles/arch.json` should be given as `arch`).
 	#[arg(short, long, env = super::PUNKTF_PROFILE_ENVVAR)]
 	pub profile: String,
+
+	/// Template engine to use for rendering templates.
+	///
+	/// This option overrides the template engine specified in the profile.
+	/// Available engines: punktf, minijinja (if compiled with feature).
+	#[arg(long)]
+	pub template_engine: Option<TemplateEngineType>,
 }
 
 /// Deploys a profile.
