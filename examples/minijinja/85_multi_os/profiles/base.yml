@@ -1,0 +1,4 @@
+template_engine: "minijinja"
+
+dotfiles:
+  - path: "shared/root"
